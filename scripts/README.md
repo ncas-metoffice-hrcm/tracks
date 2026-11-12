@@ -1,6 +1,6 @@
-# Publishing individual `track_data` directories to Zenodo
+# Publishing individual `tracks` directories to Zenodo
 
-This toolkit is intended to be copied into `ncas-metoffice-hrcm/track_data`.
+This toolkit is intended to be copied into `ncas-metoffice-hrcm/tracks`.
 It publishes one selected directory at any depth below `tropical_cyclones/`
 or `extratropical_cyclones/` as a separate Zenodo **dataset** record. Each
 selected path gets its own Concept DOI and its own version-specific DOIs.
@@ -26,7 +26,7 @@ repository commit, and immutable GitHub link to that exact commit and directory.
 
 ## Install in the repository
 
-Copy these files into the root of `ncas-metoffice-hrcm/track_data`:
+Copy these files into the root of `ncas-metoffice-hrcm/tracks`:
 
 ```text
 scripts/publish_zenodo_directory.py
@@ -140,7 +140,7 @@ python scripts/publish_zenodo_directory.py \
 ## Important operational notes
 
 - The script publishes **datasets**, not software packages. That matches the
-  data-oriented purpose of `track_data`.
+  data-oriented purpose of `tracks`.
 - A GitHub Actions run checks out the commit that triggered the workflow. Commit
   changes in the selected directory before publishing.
 - If the directory contains Git LFS files, the supplied workflow checks them
