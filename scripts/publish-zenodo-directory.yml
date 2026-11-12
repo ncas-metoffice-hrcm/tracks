@@ -1,0 +1,133 @@
+name: Publish selected directory to Zenodo
+
+on:
+  workflow_dispatch:
+    inputs:
+      directory:
+        description: >-
+          Repository-relative directory at any depth under tropical_cyclones/ or
+          extratropical_cyclones/, e.g. tropical_cyclones/model_simulations/HadGEM3/TRACK/u-ch330/NH
+        required: true
+        type: string
+      metadata_file:
+        description: Repository-relative JSON metadata file for this dataset
+        required: true
+        type: string
+      version:
+        description: Version for this dataset record, e.g. 1.0.0
+        required: true
+        type: string
+      zenodo_environment:
+        description: Use sandbox for testing; production publishes a real DOI
+        required: true
+        type: choice
+        options:
+          - sandbox
+          - production
+        default: sandbox
+
+permissions:
+  contents: write
+
+# Prevent two concurrent releases of the same directory.
+concurrency:
+  group: zenodo-publish-${{ inputs.directory }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository (including Git LFS files)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install publisher dependency
+        run: python -m pip install --upgrade requests
+
+      - name: Select Zenodo API endpoint and token
+        shell: bash
+        env:
+          ZENODO_PRODUCTION_TOKEN: ${{ secrets.ZENODO_ACCESS_TOKEN }}
+          ZENODO_SANDBOX_TOKEN: ${{ secrets.ZENODO_SANDBOX_ACCESS_TOKEN }}
+          TARGET: ${{ inputs.zenodo_environment }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == "sandbox" ]]; then
+            if [[ -z "$ZENODO_SANDBOX_TOKEN" ]]; then
+              echo "Missing ZENODO_SANDBOX_ACCESS_TOKEN secret" >&2
+              exit 1
+            fi
+            echo "ZENODO_ACCESS_TOKEN=$ZENODO_SANDBOX_TOKEN" >> "$GITHUB_ENV"
+            echo "ZENODO_API_TARGET=sandbox" >> "$GITHUB_ENV"
+          else
+            if [[ -z "$ZENODO_PRODUCTION_TOKEN" ]]; then
+              echo "Missing ZENODO_ACCESS_TOKEN secret" >&2
+              exit 1
+            fi
+            echo "ZENODO_ACCESS_TOKEN=$ZENODO_PRODUCTION_TOKEN" >> "$GITHUB_ENV"
+            echo "ZENODO_API_TARGET=production" >> "$GITHUB_ENV"
+          fi
+
+      - name: Publish selected directory
+        shell: bash
+        env:
+          DIRECTORY: ${{ inputs.directory }}
+          METADATA_FILE: ${{ inputs.metadata_file }}
+          VERSION: ${{ inputs.version }}
+          TARGET: ${{ inputs.zenodo_environment }}
+        run: |
+          set -euo pipefail
+          ARGS=(
+            --path "$DIRECTORY"
+            --metadata-file "$METADATA_FILE"
+            --version "$VERSION"
+          )
+          if [[ "$TARGET" == "sandbox" ]]; then
+            ARGS+=(--sandbox --registry zenodo/records-sandbox.json --no-readme)
+          else
+            ARGS+=(--registry zenodo/records.json --readme README.md)
+          fi
+          python scripts/publish_zenodo_directory.py "${ARGS[@]}"
+
+      - name: Commit DOI registry and README (production only)
+        if: inputs.zenodo_environment == 'production'
+        shell: bash
+        env:
+          DIRECTORY: ${{ inputs.directory }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add zenodo/records.json README.md
+          if git diff --cached --quiet; then
+            echo "No README or registry changes to commit."
+          else
+            git commit -m "Archive ${DIRECTORY} on Zenodo (${VERSION})"
+            git push
+          fi
+
+      - name: Commit Sandbox registry (sandbox only)
+        if: inputs.zenodo_environment == 'sandbox'
+        shell: bash
+        env:
+          DIRECTORY: ${{ inputs.directory }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add zenodo/records-sandbox.json
+          if git diff --cached --quiet; then
+            echo "No Sandbox registry changes to commit."
+          else
+            git commit -m "Update Zenodo Sandbox registry for ${DIRECTORY} (${VERSION})"
+            git push
+          fi
