@@ -1,0 +1,18 @@
+{
+  "title": "[Replace with a descriptive title for this dataset]",
+  "description": "[Describe the dataset, its coverage, methods, variables, units, limitations, and how to read the files.]",
+  "creators": [
+    {
+      "name": "Family name, Given name",
+      "affiliation": "[Institution]"
+    }
+  ],
+  "license": "mit",
+  "access_right": "open",
+  "keywords": [
+    "tropical cyclones",
+    "extratropical cyclones",
+    "feature tracking"
+  ],
+  "language": "eng"
+}
